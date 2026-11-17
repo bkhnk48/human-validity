@@ -1,8 +1,14 @@
 <!--
 Sync Impact Report
-- Version change: (rỗng) → 0.1.0 (bản nháp đầu, chờ duyệt)
-- Principles added: I–VI (toàn bộ mới)
-- Sections added: Ràng buộc dữ liệu và kỹ thuật; Quy trình làm việc; Governance
+- Version change: 0.1.0 → 0.2.0 (MINOR: mở rộng nguyên tắc II, III, IV và quy trình test)
+- Modified principles:
+  - II: thêm phạm vi của nhãn Human Validity; gt:<tên> và human cùng lớp positive;
+    body trùng / ghép chi / đổi người là thuộc tính chất lượng riêng, không đổi nhãn thành not_human;
+    unsure bị loại khỏi tập train và được báo riêng số lượng
+  - III: thêm feature contract chung cho train và inference, cấm feature lấy từ GT/annotation
+  - IV: chỉ chép phần cần dùng từ repo mẹ, mỗi hàm kế thừa có regression test
+- Quy trình làm việc: test liên quan cho mỗi task, toàn bộ suite cho mỗi feature/merge,
+  báo số passed/failed/skipped
 - Templates: plan/spec/tasks-template.md không cần sửa (đọc constitution lúc chạy)
 - TODO:
   - RATIFICATION_DATE: điền khi chủ dự án duyệt bản này.
@@ -27,12 +33,21 @@ Repo mẹ: `monocular-hpe-person-detection-and-identity-reliability` (MC-MCF, `p
 - Mỗi dòng nhãn ghi người gán và thời điểm gán. Gợi ý tự động phải tách riêng khỏi nhãn đã duyệt.
 
 ### II. Quy ước nhãn cố định, có phiên bản
+- Nhãn Human Validity chỉ trả lời một câu hỏi: detection có tương ứng với một người thật hay không.
 - Đơn vị gán là một đoạn `(body_id, khoảng frame)`, dùng cú pháp `@ frames` như repo mẹ.
 - Lớp nhãn: `gt:<tên>`, `human` (người thật không có GT),
   `not_human/{mannequin, chair, reflection, other}`, `unsure`.
   Ảnh người (poster, màn hình, gương) xếp vào `not_human/reflection`.
+- `gt:<tên>` và `human` cùng thuộc nhóm positive (người thật). Khi huấn luyện bộ phân loại
+  Human Validity, hai nhãn này là cùng một lớp người thật, trừ khi một spec nghiên cứu khác
+  quy định rõ.
+- Đoạn mang nhãn `unsure` bị loại khỏi tập train. Mỗi thống kê dataset và báo cáo kết quả phải
+  ghi riêng số đoạn và số detection `unsure`.
 - Frame không có dòng nhãn nghĩa là **chưa duyệt**. Không được hiểu thành "không phải người GT".
-- Body trùng và body ghép chi được tính tự động sau khi gán, không thành lớp gán tay.
+- Body trùng (body duplication), body ghép chi (body-part mixing) và đổi người (identity switch)
+  là các thuộc tính chất lượng riêng (derived quality attributes), được tính tự động sau khi gán.
+  Chúng không phải lớp gán tay và không được dùng để tự động chuyển nhãn Human Validity
+  thành `not_human`.
 - Mọi thay đổi quy ước phải tăng phiên bản schema nhãn, cập nhật hướng dẫn gán nhãn trong
   `docs/annotation/`, và có script migrate cho nhãn cũ.
 
@@ -42,11 +57,17 @@ Repo mẹ: `monocular-hpe-person-detection-and-identity-reliability` (MC-MCF, `p
 - Đặc trưng của mô hình chỉ lấy từ đầu ra của mô hình monocular: crop ảnh, keypoint 2D và
   confidence, độ khớp SMPL chiếu với keypoint, tham số SMPL, thống kê track, độ chồng giữa các
   body. GT chỉ dùng để tạo gợi ý nhãn và để đánh giá.
+- Lúc train và lúc inference, feature được trích theo cùng một hợp đồng dữ liệu (feature
+  contract): cùng danh sách trường đầu vào, cùng một đoạn code. Không được dùng các trường GT,
+  kết quả Hungarian, điểm khớp (matching score) với GT hay thông tin annotation làm feature.
+  Hợp đồng này phải có test: trích feature chạy được trên một sequence không có file GT nào.
 
 ### IV. Tương thích với repo mẹ
 - Xuất được `mapping.txt` đúng định dạng cũ để `pose_assoc/` đọc thẳng, không phải sửa repo mẹ.
-- Code chép từ repo mẹ (đọc pkl WHAM, đọc GT, phép chiếu f = sqrt(W²+H²)) phải ghi nguồn
-  (file và commit) và có test so kết quả với dữ liệu mẫu.
+- Chỉ chép từ repo mẹ phần chức năng thật sự cần (đọc pkl WHAM, đọc GT, phép chiếu
+  f = sqrt(W²+H²)), không chép nguyên module lớn như `scripts/wham_gt_mapping.py`.
+- Mỗi hàm kế thừa ghi nguồn (file và commit của repo mẹ) và có regression test so kết quả với
+  hàm gốc trên dữ liệu mẫu.
 
 ### V. Kiểm thử và tái lập được
 - Mỗi module trong `src/human_validity/` có test pytest. Hàm `validate` cho nhãn (phủ hết
@@ -76,7 +97,10 @@ Repo mẹ: `monocular-hpe-person-detection-and-identity-reliability` (MC-MCF, `p
 - Mỗi tính năng đi theo chuỗi spec-kit: `/speckit-specify` → (`/speckit-clarify`) →
   `/speckit-plan` → `/speckit-tasks` → (`/speckit-analyze`) → `/speckit-implement`.
 - Khi đổi định dạng nhãn, CLI hoặc cấu hình: cập nhật README và `docs/` trong cùng commit.
-- Trước khi báo xong một task: chạy `pytest -q` và báo kết quả.
+- Trước khi báo xong một task: chạy các test liên quan trực tiếp đến task.
+- Trước khi báo xong một feature hoặc merge vào nhánh chính: chạy toàn bộ test suite bằng
+  `pytest -q`.
+- Mỗi lần chạy test phải báo rõ số test passed, failed và skipped.
 - Khi đổi luật prelabel: chạy lại trên ít nhất một sequence đã gán nhãn và so tỉ lệ gợi ý đúng
   với lần trước.
 
@@ -87,4 +111,4 @@ Repo mẹ: `monocular-hpe-person-detection-and-identity-reliability` (MC-MCF, `p
 - Sửa constitution: ghi lý do, tăng phiên bản theo semver (MAJOR: bỏ hoặc định nghĩa lại nguyên
   tắc; MINOR: thêm nguyên tắc hoặc mở rộng đáng kể; PATCH: sửa câu chữ), chủ dự án duyệt.
 
-**Version**: 0.1.0 | **Ratified**: TODO(RATIFICATION_DATE) | **Last Amended**: 2026-11-18
+**Version**: 0.2.0 | **Ratified**: TODO(RATIFICATION_DATE) | **Last Amended**: 2026-11-18
