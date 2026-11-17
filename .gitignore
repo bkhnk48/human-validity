@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Dữ liệu và kết quả lớn (chỉ commit manifest, cấu hình, nhãn dạng văn bản)
+data/raw/
+data/processed/
+outputs/checkpoints/
+*.pkl
+*.pt
+*.pth
+*.mp4
+*.avi
+
+# Claude Code: giữ .claude/skills (spec-kit), bỏ cấu hình cá nhân
+.claude/settings.local.json
+
+# macOS
+.DS_Store
